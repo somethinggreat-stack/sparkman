@@ -1,0 +1,59 @@
+# ============================================================================
+#  Sparkman Solutions — this file belongs at:  public_html/.htaccess
+#
+#  Layout this assumes: the ENTIRE Laravel app sits inside public_html/, and
+#  only the public/ subfolder may ever be served. Every request is rewritten
+#  into public/, and the app's own files are denied directly.
+#
+#  NOTE: The cleaner setup is to point the domain's Document Root straight at
+#  .../public (cPanel > Domains). Use this file only when you cannot do that.
+# ============================================================================
+
+DirectoryIndex index.php
+
+# Never expose a directory listing.
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Let AutoSSL / Let's Encrypt domain validation through untouched, otherwise
+    # cert issuance and renewal fail (the challenge file lives in public_html).
+    RewriteCond %{REQUEST_URI} !^/\.well-known/
+    # Do not rewrite requests that are already inside /public/.
+    RewriteCond %{REQUEST_URI} !^/public/
+    # Send everything else into the Laravel public folder.
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# ---------------------------------------------------------------------------
+# Hardening: block the app's own files directly, so a mod_rewrite outage can
+# never expose .env (live payment keys), the DB schema, or source code.
+# ---------------------------------------------------------------------------
+
+# All dotfiles: .env, .env.production, .gitignore, .editorconfig, ...
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<Files "composer.json">
+    Require all denied
+</Files>
+<Files "composer.lock">
+    Require all denied
+</Files>
+<Files "artisan">
+    Require all denied
+</Files>
+<FilesMatch "\.(sql|sqlite|sqlite3|log)$">
+    Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
+# cPanel PHP handler — MUST be PHP 8.2+ (this app fails to boot on 8.1/8.0).
+# Preferred: set the version in cPanel > MultiPHP Manager and delete this block.
+# If you set it here, the version must match one installed on your server.
+# ---------------------------------------------------------------------------
+<IfModule mime_module>
+    AddHandler application/x-httpd-ea-php83 .php .php8 .phtml
+</IfModule>
