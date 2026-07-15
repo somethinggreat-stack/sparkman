@@ -1,40 +1,44 @@
 ---
 # ============================================================================
-#  cPanel Git Version Control — deployment tasks
+#  cPanel Git Version Control — deployment tasks (720fundmenow.com)
 #
-#  Runs when you click "Deploy HEAD Commit" in cPanel > Git Version Control.
-#  The repo is cloned under ~/repositories/sparkman; this copies the app code
-#  into the live web root (public_html) on each deploy.
+#  Runs on "Deploy HEAD Commit". Copies the app from the cloned repo
+#  (~/repositories/sparkman) into the live web root, then rebuilds caches.
 #
-#  DELIBERATELY NOT TOUCHED (so a deploy never breaks the live site):
-#    • .env      — your secrets live only on the server, never in the repo
-#    • vendor/   — dependencies are not in the repo; left in place on the server
-#    • storage/  — live logs, sessions, cache and uploads are preserved
-#
-#  If 720fundmenow.com is an addon/subdomain, change DEPLOYPATH to its docroot.
+#  DEPLOYPATH is this account's docroot. NOT touched by any task:
+#    .env  (secrets, lives only on the server)  •  storage/ runtime data
 # ============================================================================
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/fundmen1/public_html
+    - export DEPLOYPATH=/home/fundmen1/public_html/
 
-    # Make sure the target subfolders exist (harmless if they already do).
-    - /bin/mkdir -p $DEPLOYPATH/app $DEPLOYPATH/bootstrap $DEPLOYPATH/config $DEPLOYPATH/database $DEPLOYPATH/public $DEPLOYPATH/resources $DEPLOYPATH/routes
+    # ---- Copy application code into the web root (merges/overwrites) ----
+    - /bin/cp -R app $DEPLOYPATH
+    - /bin/cp -R bootstrap $DEPLOYPATH
+    - /bin/cp -R config $DEPLOYPATH
+    - /bin/cp -R database $DEPLOYPATH
+    - /bin/cp -R public $DEPLOYPATH
+    - /bin/cp -R resources $DEPLOYPATH
+    - /bin/cp -R routes $DEPLOYPATH
+    - /bin/cp -R tests $DEPLOYPATH
+    - /bin/cp artisan $DEPLOYPATH
+    - /bin/cp composer.json $DEPLOYPATH
+    - /bin/cp composer.lock $DEPLOYPATH
+    - /bin/cp .htaccess $DEPLOYPATH
 
-    # Copy each folder's CONTENTS (the "/." avoids nested app/app dirs and
-    # includes dotfiles). -f overwrites changed files; nothing extra is deleted.
-    - /bin/cp -Rf app/.        $DEPLOYPATH/app/
-    - /bin/cp -Rf bootstrap/.  $DEPLOYPATH/bootstrap/
-    - /bin/cp -Rf config/.     $DEPLOYPATH/config/
-    - /bin/cp -Rf database/.   $DEPLOYPATH/database/
-    - /bin/cp -Rf public/.     $DEPLOYPATH/public/
-    - /bin/cp -Rf resources/.  $DEPLOYPATH/resources/
-    - /bin/cp -Rf routes/.     $DEPLOYPATH/routes/
+    # ---- Dependencies (vendor is not in the repo; install/refresh it) ----
+    - cd $DEPLOYPATH && /opt/cpanel/composer/bin/composer install --no-dev --optimize-autoloader 2>&1 || true
 
-    # Root-level files (dotfiles are not caught by a wildcard, so list .htaccess).
-    - /bin/cp -f artisan       $DEPLOYPATH/artisan
-    - /bin/cp -f composer.json $DEPLOYPATH/composer.json
-    - /bin/cp -f composer.lock $DEPLOYPATH/composer.lock
-    - /bin/cp -f .htaccess     $DEPLOYPATH/.htaccess
+    # ---- Clear old caches so new code/config/views take effect ----
+    - cd $DEPLOYPATH && php artisan config:clear 2>&1 || true
+    - cd $DEPLOYPATH && php artisan route:clear 2>&1 || true
+    - cd $DEPLOYPATH && php artisan view:clear 2>&1 || true
 
-    # Clear stale compiled Blade views so template changes show immediately.
-    - /bin/rm -f $DEPLOYPATH/storage/framework/views/*.php
+    # ---- Database + storage symlink (safe no-ops if already done) ----
+    - cd $DEPLOYPATH && php artisan migrate --force 2>&1 || true
+    - cd $DEPLOYPATH && php artisan storage:link 2>&1 || true
+
+    # ---- Rebuild caches for production performance ----
+    - cd $DEPLOYPATH && php artisan config:cache 2>&1 || true
+    - cd $DEPLOYPATH && php artisan route:cache 2>&1 || true
+    - cd $DEPLOYPATH && php artisan view:cache 2>&1 || true
