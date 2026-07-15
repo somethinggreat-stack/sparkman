@@ -57,17 +57,29 @@ class CheckoutController extends Controller
             'terms'           => ['accepted'],
             'privacy'         => ['accepted'],
             'marketing'       => ['nullable'],
+            'billing'         => ['required', 'in:onetime,subscription'],
             'data_descriptor' => ['required', 'string'],  // from Accept.js
             'data_value'      => ['required', 'string'],   // from Accept.js (payment nonce)
         ], [
             'terms.accepted'   => 'Please accept the Terms of Service to continue.',
             'privacy.accepted' => 'Please accept the Privacy Policy to continue.',
+            'billing.required' => 'Please choose how you would like to pay.',
         ]);
 
+        // Amounts ALWAYS come from config, never from the client. The customer
+        // only tells us WHICH option; we look up the price. This guarantees the
+        // charge matches the pricing shown, and blocks any tampered amount.
+        $isSubscription = $data['billing'] === 'subscription';
+        $chargeToday    = (float) ($isSubscription ? $planData['sub_setup'] : $planData['onetime']);
+        $monthlyAmount  = $isSubscription ? (float) $planData['sub_monthly'] : null;
+        $termMonths     = (int) ($planData['term'] ?? 6);
+
         Log::info('[checkout] validation passed', [
-            'plan'   => $plan,
-            'email'  => $data['email'],
-            'amount' => $planData['down'],
+            'plan'         => $plan,
+            'email'        => $data['email'],
+            'billing'      => $data['billing'],
+            'charge_today' => $chargeToday,
+            'monthly'      => $monthlyAmount,
             'has_data_descriptor' => ! empty($data['data_descriptor']),
             'has_data_value'      => ! empty($data['data_value']),
         ]);
@@ -84,10 +96,10 @@ class CheckoutController extends Controller
             'email'          => $data['email'],
             'phone'          => $data['phone'],
             'plan'           => $plan,
-            'description'    => $planData['name'] . ' — down payment',
-            'amount'         => $planData['down'],
-            'monthly_amount' => $planData['monthly'] ?? null,
-            'type'           => isset($planData['monthly']) ? 'subscription_initial' : 'one_time',
+            'description'    => $planData['name'] . ($isSubscription ? ' — setup payment' : ' — paid in full (6 months)'),
+            'amount'         => $chargeToday,
+            'monthly_amount' => $monthlyAmount,
+            'type'           => $isSubscription ? 'subscription_initial' : 'one_time',
             'status'         => 'pending',
             'meta'           => [
                 'address'   => array_filter([
@@ -143,16 +155,16 @@ class CheckoutController extends Controller
             'payment_profile_id' => $profile['paymentProfileId'] ?? null,
         ]);
 
-        // 2) Charge the down payment against the stored profile.
+        // 2) Charge the amount due today against the stored profile.
         Log::info('[checkout] step 2: charging profile', [
             'payment_id' => $payment->id,
-            'amount'     => (float) $planData['down'],
+            'amount'     => $chargeToday,
         ]);
         try {
             $charge = $anet->chargeProfile(
                 $profile['profileId'],
                 $profile['paymentProfileId'],
-                (float) $planData['down'],
+                $chargeToday,
                 'SPK-' . $payment->id,
             );
         } catch (\Throwable $e) {
@@ -197,18 +209,21 @@ class CheckoutController extends Controller
             ]),
         ]);
 
-        // 3) Create the recurring subscription from the same stored profile.
-        if (! empty($planData['monthly'])) {
+        // 3) If they chose the monthly plan, create the recurring subscription
+        //    from the same stored profile — `term` monthly charges (6-month program).
+        if ($isSubscription) {
             Log::info('[checkout] step 3: creating subscription', [
                 'payment_id' => $payment->id,
-                'monthly'    => (float) $planData['monthly'],
+                'monthly'    => $monthlyAmount,
+                'occurrences'=> $termMonths,
             ]);
             try {
                 $sub = $anet->createSubscriptionFromProfile(
                     $profile['profileId'],
                     $profile['paymentProfileId'],
-                    (float) $planData['monthly'],
+                    $monthlyAmount,
                     'Sparkman ' . $planData['name'],
+                    $termMonths,
                 );
             } catch (\Throwable $e) {
                 // Down payment already succeeded — never fail the request here.
@@ -226,7 +241,7 @@ class CheckoutController extends Controller
                 'name'                    => $payment->name,
                 'email'                   => $payment->email,
                 'plan'                    => $plan,
-                'amount'                  => $planData['monthly'],
+                'amount'                  => $monthlyAmount,
                 'interval'                => 'monthly',
                 'status'                  => $sub['success'] ? 'active' : 'at_risk',
                 'started_at'              => now(),

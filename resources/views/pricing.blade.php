@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+@php $money = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.'); @endphp
 
 <!-- ===== Progress bar ===== -->
 <div class="scroll-progress" id="scrollProgress"></div>
@@ -51,7 +52,7 @@
     <div class="hero__copy">
       <span class="hero__badge reveal"><span class="hero__stars">★★★★★</span> Trusted by 14,000+ clients nationwide</span>
       <h1 class="hero__title reveal">Simple pricing.<br /><span class="txt-gold">No surprises.</span></h1>
-      <p class="hero__lead reveal">A low down payment, then an affordable monthly — cancel anytime. Your first consultation is always free.</p>
+      <p class="hero__lead reveal">Pay once for your full 6-month program, or spread it monthly — your choice. Your first consultation is always free.</p>
       <div class="hero__actions reveal">
         <a href="#contact" class="btn btn--gold btn--lg">Get My Free Analysis
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -68,14 +69,14 @@
     <div class="section__head reveal">
       <span class="kicker">Payment Plans</span>
       <h2 class="section__title">Invest in a <span class="txt-gold">Better Future</span></h2>
-      <p class="section__sub">Simple down payment, then a low monthly. Cancel anytime — your first consultation is always free.</p>
+      <p class="section__sub">Every plan is a 6-month program — pay in full, or start with a setup fee and go monthly. Your first consultation is always free.</p>
     </div>
     <div class="plans">
       <article class="plan reveal">
         <h3>Individual</h3>
         <p class="plan__for">One person, full cleanup</p>
-        <div class="plan__price"><span>$</span>497<small> down</small></div>
-        <p class="plan__monthly">then <b>$99</b>/month</p>
+        <div class="plan__price"><span>$</span>{{ $money(config('plans.individual.onetime')) }}<small> one-time</small></div>
+        <p class="plan__monthly">or <b>${{ $money(config('plans.individual.sub_setup')) }}</b> to start + <b>${{ $money(config('plans.individual.sub_monthly')) }}</b>/mo</p>
         <ul>
           <li>Full credit analysis</li>
           <li>All 3 bureaus covered</li>
@@ -89,8 +90,8 @@
         <span class="plan__ribbon">Most Popular</span>
         <h3>Aggressive Attack</h3>
         <p class="plan__for">Maximum, fastest results</p>
-        <div class="plan__price"><span>$</span>997<small> one-time</small></div>
-        <p class="plan__monthly"><b>One-time payment</b> — no monthly</p>
+        <div class="plan__price"><span>$</span>{{ $money(config('plans.aggressive.onetime')) }}<small> one-time</small></div>
+        <p class="plan__monthly">or <b>${{ $money(config('plans.aggressive.sub_setup')) }}</b> to start + <b>${{ $money(config('plans.aggressive.sub_monthly')) }}</b>/mo</p>
         <ul>
           <li>Everything in Individual</li>
           <li>Aggressive multi-round attacks</li>
@@ -103,8 +104,8 @@
       <article class="plan reveal">
         <h3>Husband &amp; Wife</h3>
         <p class="plan__for">Two people, one plan</p>
-        <div class="plan__price"><span>$</span>897<small> one-time</small></div>
-        <p class="plan__monthly"><b>One-time payment</b> — no monthly</p>
+        <div class="plan__price"><span>$</span>{{ $money(config('plans.couple.onetime')) }}<small> one-time</small></div>
+        <p class="plan__monthly">or <b>${{ $money(config('plans.couple.sub_setup')) }}</b> to start + <b>${{ $money(config('plans.couple.sub_monthly')) }}</b>/mo</p>
         <ul>
           <li>Both credit profiles worked together</li>
           <li>All 3 bureaus × 2</li>

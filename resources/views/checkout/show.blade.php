@@ -61,6 +61,16 @@
   .plan2__price{background:rgba(255,255,255,.06);border-top:1px solid rgba(255,255,255,.12);padding:18px 26px}
   .plan2__row{display:flex;justify-content:space-between;padding:7px 0;font-size:.9rem;color:#dbe4fa}
   .plan2__row .free{color:var(--gold2);font-weight:800}
+  /* billing option selector */
+  .plan2__opts{padding:16px 26px 4px;display:grid;gap:10px}
+  .opt{display:flex;gap:11px;align-items:flex-start;cursor:pointer;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.16);border-radius:12px;padding:12px 14px;transition:border-color .15s,background .15s}
+  .opt--on{border-color:var(--gold2);background:rgba(217,168,58,.14)}
+  .opt input{margin-top:2px;width:17px;height:17px;flex:none;accent-color:var(--gold2)}
+  .opt__body{display:flex;flex-direction:column;gap:2px;width:100%}
+  .opt__t{font-weight:800;font-size:.9rem;color:#fff;display:flex;align-items:center;gap:8px}
+  .opt__t em{font-style:normal;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;background:var(--gold2);color:#3a2708;padding:2px 7px;border-radius:20px;font-weight:800}
+  .opt__p{font-size:.86rem;color:#dbe4fa;font-weight:700}
+  .opt__p small{font-weight:600;color:#9fb0d8}
   .plan2__total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.14);margin-top:8px;padding-top:14px}
   .plan2__total small{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:#c3d0ef;font-weight:800}
   .plan2__total b{font-size:2.2rem;font-weight:800}
@@ -74,6 +84,7 @@
 </style>
 </head>
 <body>
+@php $money = fn ($v) => rtrim(rtrim(number_format((float) $v, 2), '0'), '.'); @endphp
 @include('partials.nav', ['solidNav' => true])
 <div class="co">
 
@@ -179,13 +190,27 @@
               <li><span class="ck">✓</span> {{ $feat }}</li>
             @endforeach
           </ul>
+          <div class="plan2__opts">
+            <label class="opt opt--on" id="optOnce">
+              <input type="radio" name="billing" value="onetime" checked>
+              <span class="opt__body">
+                <span class="opt__t">Pay in Full <em>Best value</em></span>
+                <span class="opt__p">${{ $money($plan['onetime']) }} <small>one-time · full {{ $plan['term'] }}-month program</small></span>
+              </span>
+            </label>
+            <label class="opt" id="optSub">
+              <input type="radio" name="billing" value="subscription">
+              <span class="opt__body">
+                <span class="opt__t">Monthly Plan</span>
+                <span class="opt__p">${{ $money($plan['sub_setup']) }} today <small>then ${{ $money($plan['sub_monthly']) }}/mo · {{ $plan['term'] }} months</small></span>
+              </span>
+            </label>
+          </div>
           <div class="plan2__price">
-            <div class="plan2__row"><span>{{ $plan['name'] }} — down payment</span><b>${{ number_format($plan['down'], 2) }}</b></div>
-            @if (!empty($plan['monthly']))
-              <div class="plan2__row"><span>Then monthly</span><b>${{ number_format($plan['monthly'], 2) }}/mo</b></div>
-            @endif
+            <div class="plan2__row"><span id="rowSetupLabel">Paid in full ({{ $plan['term'] }} months)</span><b id="rowSetupVal">${{ $money($plan['onetime']) }}</b></div>
+            <div class="plan2__row" id="rowMonthly" style="display:none"><span>Then monthly ({{ $plan['term'] }} payments)</span><b><span id="rowMonthlyVal">${{ $money($plan['sub_monthly']) }}</span>/mo</b></div>
             <div class="plan2__row"><span>Setup fee</span><span class="free">FREE</span></div>
-            <div class="plan2__total"><small>Due today</small><b>${{ number_format($plan['down'], 2) }}</b></div>
+            <div class="plan2__total"><small>Due today</small><b id="dueToday">${{ $money($plan['onetime']) }}</b></div>
           </div>
           <div class="plan2__pay">
             <button type="submit" class="btn btn--gold" id="payBtn">🔒 Complete Secure Checkout</button>
@@ -204,6 +229,31 @@
 <script src="/script.js"></script>
 <script src="{{ $anetEnv === 'production' ? 'https://js.authorize.net/v1/Accept.js' : 'https://jstest.authorize.net/v1/Accept.js' }}" charset="utf-8"></script>
 <script>
+// --- Billing option selector (display only; the server re-derives the amount) ---
+@php $pricingJs = ['onetime' => (float) $plan['onetime'], 'setup' => (float) $plan['sub_setup'], 'monthly' => (float) $plan['sub_monthly'], 'term' => (int) $plan['term']]; @endphp
+(function () {
+  var PRICING = @json($pricingJs);
+  function fmt(n){ return '$' + (Number.isInteger(n) ? n : n.toFixed(2)); }
+  function apply(){
+    var sub = document.querySelector('input[name="billing"]:checked').value === 'subscription';
+    document.getElementById('rowMonthly').style.display = sub ? '' : 'none';
+    document.getElementById('optOnce').classList.toggle('opt--on', !sub);
+    document.getElementById('optSub').classList.toggle('opt--on', sub);
+    if (sub) {
+      document.getElementById('rowSetupLabel').textContent = 'Setup (due today)';
+      document.getElementById('rowSetupVal').textContent = fmt(PRICING.setup);
+      document.getElementById('rowMonthlyVal').textContent = fmt(PRICING.monthly);
+      document.getElementById('dueToday').textContent = fmt(PRICING.setup);
+    } else {
+      document.getElementById('rowSetupLabel').textContent = 'Paid in full (' + PRICING.term + ' months)';
+      document.getElementById('rowSetupVal').textContent = fmt(PRICING.onetime);
+      document.getElementById('dueToday').textContent = fmt(PRICING.onetime);
+    }
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="billing"]'), function(r){ r.addEventListener('change', apply); });
+  apply();
+})();
+
 (function () {
   var form = document.getElementById('paymentForm');
   var btn  = document.getElementById('payBtn');
