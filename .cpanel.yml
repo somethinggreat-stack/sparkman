@@ -1,0 +1,40 @@
+---
+# ============================================================================
+#  cPanel Git Version Control — deployment tasks
+#
+#  Runs when you click "Deploy HEAD Commit" in cPanel > Git Version Control.
+#  The repo is cloned under ~/repositories/sparkman; this copies the app code
+#  into the live web root (public_html) on each deploy.
+#
+#  DELIBERATELY NOT TOUCHED (so a deploy never breaks the live site):
+#    • .env      — your secrets live only on the server, never in the repo
+#    • vendor/   — dependencies are not in the repo; left in place on the server
+#    • storage/  — live logs, sessions, cache and uploads are preserved
+#
+#  If 720fundmenow.com is an addon/subdomain, change DEPLOYPATH to its docroot.
+# ============================================================================
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/fundmen1/public_html
+
+    # Make sure the target subfolders exist (harmless if they already do).
+    - /bin/mkdir -p $DEPLOYPATH/app $DEPLOYPATH/bootstrap $DEPLOYPATH/config $DEPLOYPATH/database $DEPLOYPATH/public $DEPLOYPATH/resources $DEPLOYPATH/routes
+
+    # Copy each folder's CONTENTS (the "/." avoids nested app/app dirs and
+    # includes dotfiles). -f overwrites changed files; nothing extra is deleted.
+    - /bin/cp -Rf app/.        $DEPLOYPATH/app/
+    - /bin/cp -Rf bootstrap/.  $DEPLOYPATH/bootstrap/
+    - /bin/cp -Rf config/.     $DEPLOYPATH/config/
+    - /bin/cp -Rf database/.   $DEPLOYPATH/database/
+    - /bin/cp -Rf public/.     $DEPLOYPATH/public/
+    - /bin/cp -Rf resources/.  $DEPLOYPATH/resources/
+    - /bin/cp -Rf routes/.     $DEPLOYPATH/routes/
+
+    # Root-level files (dotfiles are not caught by a wildcard, so list .htaccess).
+    - /bin/cp -f artisan       $DEPLOYPATH/artisan
+    - /bin/cp -f composer.json $DEPLOYPATH/composer.json
+    - /bin/cp -f composer.lock $DEPLOYPATH/composer.lock
+    - /bin/cp -f .htaccess     $DEPLOYPATH/.htaccess
+
+    # Clear stale compiled Blade views so template changes show immediately.
+    - /bin/rm -f $DEPLOYPATH/storage/framework/views/*.php
